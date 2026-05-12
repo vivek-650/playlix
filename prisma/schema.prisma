@@ -1,0 +1,463 @@
+// ============================================
+// Playlix: YouTube Learning Platform
+// Database Schema - Supabase PostgreSQL
+// ORM: Prisma
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+// ============================================
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
+  firstName String?
+  lastName  String?
+  avatarUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  createdPlaylists Playlist[] @relation("PlaylistCreatedBy")
+  enrolledPlaylists PlaylistEnrollment[] @relation("EnrolledPlaylists")
+  
+  videoProgress    VideoProgress[]
+  notes            Note[]
+  bookmarks        VideoBookmark[]
+  activities       Activity[]
+  importJobs       ImportJob[]
+  
+  settings         UserSettings?
+  streak           Streak?
+  dailyCompletions DailyCompletion[]
+
+  @@index([clerkId])
+  @@index([createdAt])
+  @@map("User")
+}
+
+// ============================================
+// PLAYLIST
+// Content entity (can be shared/enrolled by multiple users)
+// CRITICAL: Separate from user enrollment state
+// ============================================
+
+enum PlaylistStatus {
+  IMPORTING
+  READY
+  FAILED
+  PROCESSING
+}
+
+enum PlaylistVisibility {
+  PRIVATE
+  PUBLIC
+  UNLISTED
+}
+
+model Playlist {
+  id        String   @id @default(cuid())
+  createdById String
+  createdBy User     @relation("PlaylistCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  // YouTube metadata
+  youtubePlaylistId String   @unique
+  title             String
+  description       String?
+  channelTitle      String?
+  thumbnailUrl      String?
+
+  // Content management
+  slug              String   @unique
+  isTemplate        Boolean  @default(false)
+  sourcePlaylistId  String?  // for forks/remixes
+  status            PlaylistStatus @default(READY)
+  visibility        PlaylistVisibility @default(PRIVATE)
+
+  // Metadata
+  totalVideos      Int      @default(0)
+  totalDurationSeconds Int  @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  videos            Video[]
+  enrollments       PlaylistEnrollment[]
+  tags              PlaylistTag[]
+  bookmarks         VideoBookmark[]
+  notes             Note[]
+  activities        Activity[]
+  analytics         PlaylistAnalytics?
+  importJobs        ImportJob[]
+
+  @@index([createdById])
+  @@index([slug])
+  @@index([visibility])
+  @@index([status])
+  @@index([createdAt])
+  @@map("Playlist")
+}
+
+// ============================================
+// VIDEO
+// Content entity (shared across users)
+// User-specific state goes to UserVideoProgress
+// ============================================
+
+model Video {
+  id        String   @id @default(cuid())
+  playlistId String
+  playlist  Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  // YouTube metadata
+  youtubeVideoId  String
+  title           String
+  thumbnailUrl    String?
+  durationSeconds Int?
+
+  // Position in playlist
+  position Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  userProgress VideoProgress[] @relation("userProgress")
+  bookmarks    VideoBookmark[]
+  activities   Activity[]
+
+  @@unique([playlistId, youtubeVideoId])
+  @@index([playlistId])
+  @@index([youtubeVideoId])
+  @@map("Video")
+}
+
+// ============================================
+// USER VIDEO PROGRESS
+// CRITICAL: Per-user completion/skip state
+// Enables multi-user playlists
+// ============================================
+
+model VideoProgress {
+  id        String   @id @default(cuid())
+  userId    String
+  videoId   String
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video    @relation("userProgress", fields: [videoId], references: [id], onDelete: Cascade)
+
+  isCompleted      Boolean   @default(false)
+  isSkipped        Boolean   @default(false)
+  watchedSeconds   Int       @default(0)
+
+  completedAt      DateTime?
+  lastWatchedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, videoId])
+  @@index([userId])
+  @@index([userId, completedAt])
+  @@index([isCompleted])
+  @@map("VideoProgress")
+}
+
+// ============================================
+// PLAYLIST ENROLLMENT
+// CRITICAL: Separate user state from content
+// Enables public playlists, community learning
+// ============================================
+
+model PlaylistEnrollment {
+  id        String   @id @default(cuid())
+  userId    String
+  playlistId String
+
+  user      User     @relation("EnrolledPlaylists", fields: [userId], references: [id], onDelete: Cascade)
+  playlist  Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  // Progress tracking
+  progress  Float    @default(0)
+  completedVideos Int @default(0)
+  totalVideos Int    @default(0)
+
+  // Resume position
+  lastVideoId String?
+  lastWatchedAt DateTime?
+
+  enrolledAt  DateTime @default(now())
+  completedAt DateTime?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, playlistId])
+  @@index([userId])
+  @@index([userId, enrolledAt])
+  @@index([progress])
+  @@map("PlaylistEnrollment")
+}
+
+// ============================================
+// NOTE
+// User notes (can link to playlists)
+// ============================================
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  playlistId String?
+  playlist   Playlist? @relation(fields: [playlistId], references: [id], onDelete: SetNull)
+
+  title   String
+  content String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([playlistId])
+  @@map("Note")
+}
+
+// ============================================
+// TAGGING SYSTEM
+// For search and discovery
+// ============================================
+
+model Tag {
+  id    String   @id @default(cuid())
+  name  String   @unique
+  slug  String   @unique
+  
+  playlistTags PlaylistTag[]
+
+  createdAt DateTime @default(now())
+  
+  @@index([name])
+  @@map("Tag")
+}
+
+model PlaylistTag {
+  playlistId String
+  tagId      String
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([playlistId, tagId])
+  @@index([tagId])
+  @@map("PlaylistTag")
+}
+
+// ============================================
+// PLAYLIST ANALYTICS
+// CRITICAL: Separate from content model
+// ============================================
+
+model PlaylistAnalytics {
+  id        String   @id @default(cuid())
+  playlistId String   @unique
+
+  totalViews        Int @default(0)
+  totalEnrollments  Int @default(0)
+  totalCompletions  Int @default(0)
+  totalLikes        Int @default(0)
+  totalBookmarks    Int @default(0)
+
+  playlist  Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+
+  @@index([playlistId])
+  @@map("PlaylistAnalytics")
+}
+
+// ============================================
+// IMPORT JOB
+// Background job tracking for YouTube imports
+// ============================================
+
+enum ImportJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model ImportJob {
+  id        String   @id @default(cuid())
+  userId    String
+  playlistId String
+
+  youtubePlaylistId String
+  status    ImportJobStatus @default(PENDING)
+
+  totalVideos Int @default(0)
+  processedVideos Int @default(0)
+  
+  error String?
+  
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  startedAt DateTime?
+  completedAt DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("ImportJob")
+}
+
+// ============================================
+// VIDEO BOOKMARK
+// Timestamps within videos
+// ============================================
+
+// ============================================
+// VIDEO BOOKMARK
+// Timestamps within videos
+// ============================================
+
+model VideoBookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  playlistId String
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  youtubeVideoId String
+  timestamp      Int     // seconds
+  label          String?
+
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+
+  @@unique([userId, videoId, timestamp])
+  @@index([userId])
+  @@index([videoId])
+  @@index([userId, createdAt])
+  @@map("VideoBookmark")
+}
+
+// ============================================
+// ACTIVITY
+// User activity log
+// Event-driven architecture compatibility
+// ============================================
+
+enum ActivityType {
+  VIDEO_COMPLETED
+  VIDEO_SKIPPED
+  PLAYLIST_ENROLLED
+  PLAYLIST_COMPLETED
+  NOTE_CREATED
+  BOOKMARK_ADDED
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      ActivityType
+  title     String?
+
+  playlistId String?
+  playlist   Playlist? @relation(fields: [playlistId], references: [id], onDelete: SetNull)
+
+  videoId   String?
+  video     Video?    @relation(fields: [videoId], references: [id], onDelete: SetNull)
+
+  metadata  String?   // JSON for extensibility
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([userId, type])
+  @@index([type])
+  @@map("Activity")
+}
+
+// ============================================
+// USER SETTINGS
+// Playback preferences
+// ============================================
+
+model UserSettings {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  playbackSpeed Decimal @default(1.00) @db.Decimal(3, 2)
+  autoAdvance   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("UserSettings")
+}
+
+// ============================================
+// STREAK
+// User's daily activity streak
+// ============================================
+
+model Streak {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  currentStreak Int  @default(0)
+  maxStreak     Int  @default(0)
+  lastActiveDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("Streak")
+}
+
+// ============================================
+// DAILY COMPLETION
+// Daily completion tracking for contribution graph
+// ============================================
+
+model DailyCompletion {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  completionDate DateTime
+  completionCount Int     @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, completionDate])
+  @@index([userId])
+  @@index([userId, completionDate])
+  @@map("DailyCompletion")
+}
