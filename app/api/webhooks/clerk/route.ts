@@ -44,12 +44,25 @@ export async function POST(req: Request) {
   try {
     if (eventType === "user.created") {
       const { id, first_name, last_name, email_addresses, image_url } = evt.data
+      const email = email_addresses[0]?.email_address
 
-      // Create user in database
-      await prisma.user.create({
-        data: {
+      if (!email) {
+        throw new Error("Clerk user is missing an email address")
+      }
+
+      // Create or refresh the local user record
+      await prisma.user.upsert({
+        where: { clerkId: id },
+        update: {
+          email,
+          firstName: first_name,
+          lastName: last_name,
+          avatarUrl: image_url,
+          deletedAt: null,
+        },
+        create: {
           clerkId: id,
-          email: email_addresses[0]?.email_address || email,
+          email,
           firstName: first_name,
           lastName: last_name,
           avatarUrl: image_url,

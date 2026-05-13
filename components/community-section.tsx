@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -127,7 +128,22 @@ export function CommunitySection() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {playlists.map((playlist) => (
               <Card key={playlist.id} className="overflow-hidden border-border/60 bg-card/80 backdrop-blur">
-                <div className="aspect-video bg-gradient-to-br from-background to-muted relative">
+                <div className="relative aspect-video overflow-hidden bg-gradient-to-br from-background to-muted">
+                  {playlist.thumbnailUrl ? (
+                    <Image
+                      src={playlist.thumbnailUrl}
+                      alt={playlist.title}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-gradient-to-br from-background to-muted">
+                      <div className="rounded-full bg-background/80 px-4 py-2 text-sm text-muted-foreground shadow-sm">
+                        No thumbnail
+                      </div>
+                    </div>
+                  )}
                   <div className="absolute left-3 top-3 flex items-center gap-2">
                     <Badge className="gap-1.5 bg-background/90 text-foreground border shadow-sm">
                       <Globe className="h-3 w-3" />
