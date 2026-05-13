@@ -9,7 +9,15 @@ export async function GET() {
   try {
     const userId = await verifyAuth()
     const settings = await userService.getSettings(userId)
-    return NextResponse.json(successResponse(settings), { status: 200 })
+    return NextResponse.json(
+      successResponse(settings),
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "private, max-age=600, s-maxage=600",
+        },
+      }
+    )
   } catch (error: any) {
     console.error("[GET /api/settings]", error)
     if (error.statusCode) {

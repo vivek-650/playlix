@@ -220,14 +220,24 @@ export const videoService = {
     })
   },
 
-  async completeVideo(userId: string, videoId: string) {
+  async completeVideo(userId: string, youtubeVideoId: string) {
+    // Validate video exists and get database ID
+    const video = await prisma.video.findFirst({
+      where: { youtubeVideoId },
+      select: { id: true, playlistId: true },
+    })
+
+    if (!video) {
+      throw new Error("Video not found")
+    }
+
     const progress = await prisma.videoProgress.findUnique({
-      where: { userId_videoId: { userId, videoId } },
+      where: { userId_videoId: { userId, videoId: video.id } },
     })
 
     const updated = progress
       ? await prisma.videoProgress.update({
-          where: { userId_videoId: { userId, videoId } },
+          where: { userId_videoId: { userId, videoId: video.id } },
           data: {
             isCompleted: !progress.isCompleted,
             completedAt: !progress.isCompleted ? new Date() : null,
@@ -236,7 +246,7 @@ export const videoService = {
       : await prisma.videoProgress.create({
           data: {
             userId,
-            videoId,
+            videoId: video.id,
             isCompleted: true,
             completedAt: new Date(),
           },
@@ -244,49 +254,64 @@ export const videoService = {
 
     // Emit event
     if (updated.isCompleted) {
-      const video = await prisma.video.findUnique({
-        where: { id: videoId },
-        include: { playlist: true },
-      })
-
       await emitEvent(EventType.VIDEO_COMPLETED, userId, {
-        videoId,
-        playlistId: video?.playlistId,
+        videoId: video.id,
+        playlistId: video.playlistId,
       })
     }
 
     return updated
   },
 
-  async skipVideo(userId: string, videoId: string) {
+  async skipVideo(userId: string, youtubeVideoId: string) {
+    // Validate video exists and get database ID
+    const video = await prisma.video.findFirst({
+      where: { youtubeVideoId },
+      select: { id: true },
+    })
+
+    if (!video) {
+      throw new Error("Video not found")
+    }
+
     const progress = await prisma.videoProgress.findUnique({
-      where: { userId_videoId: { userId, videoId } },
+      where: { userId_videoId: { userId, videoId: video.id } },
     })
 
     return progress
       ? prisma.videoProgress.update({
-          where: { userId_videoId: { userId, videoId } },
+          where: { userId_videoId: { userId, videoId: video.id } },
           data: { isSkipped: !progress.isSkipped },
         })
       : prisma.videoProgress.create({
           data: {
             userId,
-            videoId,
+            videoId: video.id,
             isSkipped: true,
           },
         })
   },
 
-  async savePosition(userId: string, videoId: string, seconds: number) {
+  async savePosition(userId: string, youtubeVideoId: string, seconds: number) {
+    // Validate video exists and get database ID
+    const video = await prisma.video.findFirst({
+      where: { youtubeVideoId },
+      select: { id: true },
+    })
+
+    if (!video) {
+      throw new Error("Video not found")
+    }
+
     return prisma.videoProgress.upsert({
-      where: { userId_videoId: { userId, videoId } },
+      where: { userId_videoId: { userId, videoId: video.id } },
       update: {
         watchedSeconds: seconds,
         lastWatchedAt: new Date(),
       },
       create: {
         userId,
-        videoId,
+        videoId: video.id,
         watchedSeconds: seconds,
         lastWatchedAt: new Date(),
       },

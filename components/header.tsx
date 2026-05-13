@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { SignOutButton, useUser } from "@clerk/nextjs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { YoutubeIcon, LogOut, User, Menu, LayoutDashboard, Library, StickyNote, Globe } from "lucide-react"
+import { YoutubeIcon, LogOut, User, Menu, LayoutDashboard, Library, StickyNote, Globe, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -88,6 +88,12 @@ export function Header() {
                 <Link href="/profile" className="gap-2">
                   <User className="h-4 w-4" />
                   Profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings" className="gap-2">
+                  <Settings className="h-4 w-4" />
+                  Settings
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />

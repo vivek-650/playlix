@@ -17,7 +17,15 @@ export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse>> 
     const userId = await verifyAuth()
     const playlists = await playlistService.getUserPlaylists(userId)
 
-    return NextResponse.json(successResponse(serializePlaylists(playlists)), { status: 200 })
+    return NextResponse.json(
+      successResponse(serializePlaylists(playlists)),
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "private, max-age=120, s-maxage=120",
+        },
+      }
+    )
   } catch (error: any) {
     console.error("[GET /api/playlists]", error)
 

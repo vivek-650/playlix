@@ -1,7 +1,9 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useState, useMemo } from "react"
+import { useDataCache, invalidateCachePattern } from "@/hooks/use-data-cache"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PlaylistCard } from "@/components/playlist-card"
 import { AddPlaylistDialog } from "@/components/add-playlist-dialog"
@@ -13,49 +15,44 @@ import { Skeleton } from "@/components/ui/skeleton"
 type SortOption = "recent" | "progress" | "added" | "name"
 
 export default function LibraryPage() {
-  const [playlists, setPlaylists] = useState<LibraryPlaylist[]>([])
   const [search, setSearch] = useState("")
   const [sort, setSort] = useState<SortOption>("recent")
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [showAddDialog, setShowAddDialog] = useState(false)
 
-  async function refresh() {
-    try {
-      setLoading(true)
+  const { data: playlists = [], loading, error, refetch } = useDataCache(
+    "playlists:library",
+    async () => {
       const response = await fetch("/api/playlists")
       const data = await response.json()
-
       if (data.success) {
-        setPlaylists(data.data || [])
-        setError(null)
+        return data.data || []
       } else {
-        setError(data.error || "Failed to load playlists")
+        throw new Error(data.error || "Failed to load playlists")
       }
-    } catch (fetchError) {
-      console.error(fetchError)
-      setError("Failed to load playlists")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    refresh()
-  }, [])
+    },
+    { ttl: 5 * 60 * 1000, revalidateOnFocus: true }
+  )
 
   async function handleRemove(id: string) {
     const response = await fetch(`/api/playlists/${id}`, { method: "DELETE" })
     const data = await response.json()
-
     if (data.success) {
-      refresh()
-    } else {
-      setError(data.error || "Failed to delete playlist")
+      invalidateCachePattern("playlists:")
+      await refetch()
     }
   }
 
+  const handlePlaylistAdded = async () => {
+    setShowAddDialog(false)
+    invalidateCachePattern("playlists:")
+    invalidateCachePattern("stats:")
+    await refetch()
+  }
+
+  const playlistList = playlists ?? []
+
   const filtered = useMemo(() => {
-    let list = playlists.filter(
+    let list = playlistList.filter(
       (p) =>
         p.title.toLowerCase().includes(search.toLowerCase()) ||
         p.channelTitle.toLowerCase().includes(search.toLowerCase())
@@ -81,13 +78,15 @@ export default function LibraryPage() {
     }
 
     return list
-  }, [playlists, search, sort])
+  }, [playlistList, search, sort])
 
   return (
     <div className="container px-4 py-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold">Library</h1>
-        <AddPlaylistDialog onAdded={refresh} />
+        <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+          Add Playlist
+        </Button>
       </div>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
@@ -102,7 +101,7 @@ export default function LibraryPage() {
             </div>
           ))}
         </div>
-      ) : playlists.length > 0 && (
+      ) : playlistList.length > 0 && (
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -127,13 +126,15 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {!loading && playlists.length === 0 ? (
+      {!loading && playlistList.length === 0 ? (
         <EmptyState
           icon={Library}
           title="Your library is empty"
           description="Add a YouTube playlist URL to start learning distraction-free."
         >
-          <AddPlaylistDialog onAdded={refresh} />
+          <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+            Add Playlist
+          </Button>
         </EmptyState>
       ) : filtered.length === 0 ? (
         <p className="text-center text-muted-foreground py-8">No playlists match your search.</p>
@@ -144,6 +145,8 @@ export default function LibraryPage() {
           ))}
         </div>
       )}
+
+      <AddPlaylistDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdded={handlePlaylistAdded} />
     </div>
   )
 }

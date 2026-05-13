@@ -1,244 +1,312 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { useUser } from "@clerk/nextjs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Image from "next/image"
+import { useDataCache, invalidateCachePattern } from "@/hooks/use-data-cache"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { AddPlaylistDialog } from "@/components/add-playlist-dialog"
 import { EmptyState } from "@/components/empty-state"
-import type { LibraryPlaylist, LearningStats, ActivityEvent } from "@/lib/types"
-import {
-  LayoutDashboard,
-  Play,
-  BookOpen,
-  CheckCircle2,
-  Flame,
-  TrendingUp,
-  Clock,
-} from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import type { LibraryPlaylist, LearningStats } from "@/lib/types"
+import { Play, Plus, TrendingUp, Flame, CheckCircle2, BookOpen } from "lucide-react"
 
 export default function DashboardPage() {
   const { user } = useUser()
-  const [library, setLibrary] = useState<LibraryPlaylist[]>([])
-  const [stats, setStats] = useState<LearningStats | null>(null)
-  const [activity, setActivity] = useState<ActivityEvent[]>([])
-  const [loading, setLoading] = useState(true)
+  const [showAddDialog, setShowAddDialog] = useState(false)
 
-  async function refresh() {
-    setLoading(true)
-    try {
-      const [playlistsRes, statsRes, activityRes] = await Promise.all([
-        fetch("/api/playlists"),
-        fetch("/api/stats"),
-        fetch("/api/activity"),
-      ])
+  // Fetch playlists with caching (5 min TTL)
+  const {
+    data: playlists = [],
+    loading: playlistsLoading,
+    refetch: refetchPlaylists,
+  } = useDataCache(
+    "playlists:all",
+    async () => {
+      const res = await fetch("/api/playlists")
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      return data.data || []
+    },
+    { ttl: 5 * 60 * 1000, revalidateOnFocus: true }
+  )
 
-      const playlistsData = await playlistsRes.json()
-      const statsData = await statsRes.json()
-      const activityData = await activityRes.json()
+  // Fetch stats with caching (5 min TTL)
+  const { data: stats } = useDataCache(
+    "stats:user",
+    async () => {
+      const res = await fetch("/api/stats")
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      return data.data
+    },
+    { ttl: 5 * 60 * 1000, revalidateOnFocus: true }
+  )
 
-      if (playlistsData.success) setLibrary(playlistsData.data || [])
-      if (statsData.success) setStats(statsData.data)
-      if (activityData.success) setActivity(activityData.data || [])
-    } finally {
-      setLoading(false)
-    }
+  // Handle playlist added
+  const handlePlaylistAdded = async () => {
+    setShowAddDialog(false)
+    // Invalidate caches and refetch
+    invalidateCachePattern("playlists:")
+    invalidateCachePattern("stats:")
+    await refetchPlaylists()
   }
 
-  useEffect(() => {
-    // migrateFromOldStorage()
-    refresh()
-  }, [])
+  const typedPlaylists: LibraryPlaylist[] = playlists
 
-  // Find the most recently watched playlist
-  const continuePlaylist = library.find((playlist) => playlist.completedVideoIds.length < playlist.totalVideos)
+  // Find most recently watched
+  const continuePlaylist = typedPlaylists
+    ?.sort((a, b) => (b.lastWatchedAt || b.addedAt).localeCompare(a.lastWatchedAt || a.addedAt))
+    ?.find((p) => p.completedVideoIds?.length < p.totalVideos)
 
-  const topPlaylists = library.slice(0, 4)
+  // All enrolled playlists
+  const enrolledPlaylists = typedPlaylists || []
+
+  if (!user) return null
 
   return (
-    <div className="container px-4 py-6 space-y-6">
-      {/* Welcome */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">
-            Welcome back{user?.firstName ? `, ${user.firstName}` : ""}
-          </h1>
-          <p className="text-muted-foreground text-sm">Pick up where you left off</p>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b">
+        <div className="container px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">My Enrollments</h1>
+              <p className="text-sm text-muted-foreground mt-1">Access all your enrolled courses in one place.</p>
+            </div>
+            <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Playlist
+            </Button>
+          </div>
         </div>
-        <AddPlaylistDialog onAdded={refresh} />
       </div>
 
-      {library.length === 0 ? (
-        <EmptyState
-          icon={LayoutDashboard}
-          title="Get started"
-          description="Add your first YouTube playlist to begin learning distraction-free."
-        >
-          <AddPlaylistDialog onAdded={refresh} />
-        </EmptyState>
-      ) : (
-        <>
-          {/* Continue Learning */}
-          {continuePlaylist && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Play className="h-4 w-4" />
+      <div className="container px-4 py-8">
+        {enrolledPlaylists.length === 0 ? (
+          <EmptyState
+            icon={BookOpen}
+            title="Get started learning"
+            description="Add your first YouTube playlist to begin your learning journey distraction-free."
+          >
+            <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Your First Playlist
+            </Button>
+          </EmptyState>
+        ) : (
+          <>
+            {/* Continue Learning Section */}
+            {continuePlaylist && (
+              <div className="mb-8">
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Play className="h-5 w-5 text-primary" />
                   Continue Learning
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row items-start gap-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold truncate">{continuePlaylist.title}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {continuePlaylist.channelTitle} &middot;{" "}
-                      {continuePlaylist.completedVideoIds.length}/{continuePlaylist.totalVideos} videos
-                    </p>
-                    <Progress
-                      value={
-                        continuePlaylist.totalVideos > 0
-                          ? (continuePlaylist.completedVideoIds.length / continuePlaylist.totalVideos) * 100
-                          : 0
-                      }
-                      className="h-1.5 mt-2"
-                    />
-                  </div>
-                  <Link href={`/watch/${continuePlaylist.id}`}>
-                    <Button size="sm" className="gap-2">
-                      <Play className="h-3.5 w-3.5" />
-                      Resume
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Stats grid */}
-          {stats && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <BookOpen className="h-5 w-5 text-blue-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{stats.totalPlaylists}</p>
-                      <p className="text-xs text-muted-foreground">Playlists</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{stats.completedVideos}</p>
-                      <p className="text-xs text-muted-foreground">Videos Done</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <Flame className="h-5 w-5 text-orange-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{stats.currentStreak}</p>
-                      <p className="text-xs text-muted-foreground">Day Streak</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <TrendingUp className="h-5 w-5 text-purple-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{stats.completionRate}%</p>
-                      <p className="text-xs text-muted-foreground">Completion</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Recent Activity + Playlists */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Activity */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Recent Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {activity.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No activity yet. Start watching!</p>
-                ) : (
-                  <div className="space-y-3">
-                    {activity.map((event) => (
-                      <div key={event.id} className="flex items-start gap-3">
-                        <div className="mt-0.5">
-                          {event.type === "video_completed" && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                          {event.type === "playlist_added" && <BookOpen className="h-4 w-4 text-blue-500" />}
-                          {event.type === "playlist_completed" && <TrendingUp className="h-4 w-4 text-purple-500" />}
-                          {event.type === "note_created" && <BookOpen className="h-4 w-4 text-yellow-500" />}
-                          {event.type === "bookmark_added" && <BookOpen className="h-4 w-4 text-orange-500" />}
+                </h2>
+                <Link href={`/watch/${continuePlaylist.id}`}>
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                        {/* Thumbnail */}
+                        <div className="relative h-48 sm:h-auto sm:row-span-2 bg-muted">
+                          {continuePlaylist.thumbnailUrl ? (
+                            <Image
+                              src={continuePlaylist.thumbnailUrl}
+                              alt={continuePlaylist.title}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+                              <BookOpen className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                          )}
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-sm truncate">{event.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(event.timestamp).toLocaleDateString()}
-                          </p>
+
+                        {/* Content */}
+                        <div className="sm:col-span-3 p-6 flex flex-col justify-between">
+                          <div>
+                            <h3 className="font-semibold text-lg line-clamp-2">{continuePlaylist.title}</h3>
+                            <p className="text-sm text-muted-foreground mt-1">By {continuePlaylist.channelTitle}</p>
+                          </div>
+
+                          <div className="mt-4 space-y-3">
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium">Progress</span>
+                                <span className="text-sm text-muted-foreground">
+                                  {continuePlaylist.completedVideoIds?.length || 0}/
+                                  {continuePlaylist.totalVideos} videos
+                                </span>
+                              </div>
+                              <Progress
+                                value={
+                                  continuePlaylist.totalVideos > 0
+                                    ? ((continuePlaylist.completedVideoIds?.length || 0) /
+                                        continuePlaylist.totalVideos) *
+                                      100
+                                    : 0
+                                }
+                                className="h-2"
+                              />
+                            </div>
+                            <Button className="w-fit gap-2">
+                              <Play className="h-4 w-4" />
+                              Resume Learning
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Playlists preview */}
-            <Card>
-              <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                <CardTitle className="text-base">Your Playlists</CardTitle>
-                <Link href="/library">
-                  <Button variant="ghost" size="sm">
-                    View all
-                  </Button>
+                    </CardContent>
+                  </Card>
                 </Link>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {topPlaylists.map((p) => {
-                    const progress =
-                      p.totalVideos > 0
-                        ? Math.round((p.completedVideoIds.length / p.totalVideos) * 100)
-                        : 0
-                    return (
-                      <Link key={p.id} href={`/watch/${p.id}`} className="block">
-                        <div className="flex items-center gap-3 p-2 rounded-md hover:bg-accent/50 transition-colors">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{p.title}</p>
-                            <p className="text-xs text-muted-foreground">{p.channelTitle}</p>
-                          </div>
-                          <span className="text-xs font-medium shrink-0">{progress}%</span>
+              </div>
+            )}
+
+            {/* Stats Grid */}
+            {stats && (
+              <div className="mb-8">
+                <h2 className="text-lg font-semibold mb-4">Your Progress</h2>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-500/10 rounded-lg">
+                          <BookOpen className="h-5 w-5 text-blue-500" />
                         </div>
+                        <div>
+                          <p className="text-2xl font-bold">{stats.totalPlaylists}</p>
+                          <p className="text-xs text-muted-foreground">Enrolled</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-green-500/10 rounded-lg">
+                          <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{stats.completedVideos}</p>
+                          <p className="text-xs text-muted-foreground">Completed</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-orange-500/10 rounded-lg">
+                          <Flame className="h-5 w-5 text-orange-500" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{stats.currentStreak}</p>
+                          <p className="text-xs text-muted-foreground">Day Streak</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-purple-500/10 rounded-lg">
+                          <TrendingUp className="h-5 w-5 text-purple-500" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{stats.completionRate}%</p>
+                          <p className="text-xs text-muted-foreground">Completion</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
+
+            {/* All Enrollments */}
+            <div>
+              <h2 className="text-lg font-semibold mb-4">All Courses</h2>
+              {playlistsLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="space-y-3">
+                      <Skeleton className="aspect-video rounded-lg" />
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {enrolledPlaylists.map((playlist) => {
+                    const completed = playlist.completedVideoIds?.length || 0
+                    const total = playlist.totalVideos
+                    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0
+
+                    return (
+                      <Link key={playlist.id} href={`/watch/${playlist.id}`}>
+                        <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer overflow-hidden">
+                          <div className="relative aspect-video bg-muted overflow-hidden">
+                            {playlist.thumbnailUrl ? (
+                              <Image
+                                src={playlist.thumbnailUrl}
+                                alt={playlist.title}
+                                fill
+                                className="object-cover hover:scale-105 transition-transform"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+                                <BookOpen className="h-8 w-8 text-muted-foreground" />
+                              </div>
+                            )}
+
+                            {/* Completion Badge */}
+                            <div className="absolute top-2 right-2 bg-black/80 backdrop-blur-sm rounded-full px-3 py-1">
+                              <span className="text-xs font-semibold text-white">{percentage}%</span>
+                            </div>
+                          </div>
+
+                          <CardContent className="p-4">
+                            <h3 className="font-semibold line-clamp-2 text-sm">{playlist.title}</h3>
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                              By {playlist.channelTitle}
+                            </p>
+
+                            <div className="mt-3 space-y-2">
+                              <Progress value={percentage} className="h-1.5" />
+                              <p className="text-xs text-muted-foreground">
+                                {completed}/{total} videos
+                              </p>
+                            </div>
+
+                            <Button
+                              size="sm"
+                              className="w-full mt-3"
+                              variant={percentage === 100 ? "secondary" : "default"}
+                            >
+                              {percentage === 100 ? "Review" : "Continue"}
+                            </Button>
+                          </CardContent>
+                        </Card>
                       </Link>
                     )
                   })}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </>
-      )}
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      <AddPlaylistDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdded={handlePlaylistAdded} />
     </div>
   )
 }

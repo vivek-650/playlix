@@ -8,7 +8,15 @@ export async function GET() {
   try {
     const userId = await verifyAuth()
     const stats = await userService.getStats(userId)
-    return NextResponse.json(successResponse(serializeStats(stats)), { status: 200 })
+    return NextResponse.json(
+      successResponse(serializeStats(stats)),
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "private, max-age=300, s-maxage=300",
+        },
+      }
+    )
   } catch (error: any) {
     console.error("[GET /api/stats]", error)
     if (error.statusCode) {

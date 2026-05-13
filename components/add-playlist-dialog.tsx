@@ -16,10 +16,16 @@ import type { LibraryPlaylist } from "@/lib/types"
 
 interface AddPlaylistDialogProps {
   onAdded: () => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export function AddPlaylistDialog({ onAdded }: AddPlaylistDialogProps) {
-  const [open, setOpen] = useState(false)
+export function AddPlaylistDialog({ onAdded, open: controlledOpen, onOpenChange: controlledOnOpenChange }: AddPlaylistDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  
+  // Use controlled state if provided, otherwise use internal state
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen
+  const setOpen = controlledOnOpenChange !== undefined ? controlledOnOpenChange : setInternalOpen
   const [url, setUrl] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")

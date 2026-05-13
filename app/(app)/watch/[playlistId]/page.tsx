@@ -153,20 +153,73 @@ export default function WatchPage() {
   }
 
   async function handleToggleComplete(videoId: string) {
-    await fetch(`/api/videos/${videoId}/complete`, { method: "POST" })
-    await refreshPlaylist()
+    if (!playlist) return
+    
+    // Optimistic update
+    const isCompleted = playlist.completedVideoIds.includes(videoId)
+    setPlaylist({
+      ...playlist,
+      completedVideoIds: isCompleted
+        ? playlist.completedVideoIds.filter((id) => id !== videoId)
+        : [...playlist.completedVideoIds, videoId],
+    })
+
+    try {
+      const response = await fetch(`/api/videos/${videoId}/complete`, { method: "POST" })
+      if (!response.ok) throw new Error("Failed to toggle completion")
+    } catch (error) {
+      // Rollback on error
+      setPlaylist({
+        ...playlist,
+        completedVideoIds: isCompleted
+          ? [...playlist.completedVideoIds, videoId]
+          : playlist.completedVideoIds.filter((id) => id !== videoId),
+      })
+      console.error(error)
+    }
   }
 
   async function handleToggleSkip(videoId: string) {
-    await fetch(`/api/videos/${videoId}/skip`, { method: "POST" })
-    await refreshPlaylist()
+    if (!playlist) return
+
+    // Optimistic update
+    const isSkipped = playlist.skippedVideoIds?.includes(videoId)
+    setPlaylist({
+      ...playlist,
+      skippedVideoIds: isSkipped
+        ? (playlist.skippedVideoIds || []).filter((id) => id !== videoId)
+        : [...(playlist.skippedVideoIds || []), videoId],
+    })
+
+    try {
+      const response = await fetch(`/api/videos/${videoId}/skip`, { method: "POST" })
+      if (!response.ok) throw new Error("Failed to toggle skip")
+    } catch (error) {
+      // Rollback on error
+      setPlaylist({
+        ...playlist,
+        skippedVideoIds: isSkipped
+          ? [...(playlist.skippedVideoIds || []), videoId]
+          : (playlist.skippedVideoIds || []).filter((id) => id !== videoId),
+      })
+      console.error(error)
+    }
   }
 
   async function handleVideoEnded() {
     const currentVideo = playlist?.videos.find((video) => video.id === currentVideoId)
-    if (currentVideo && !playlist?.completedVideoIds.includes(currentVideo.id)) {
-      await fetch(`/api/videos/${currentVideoId}/complete`, { method: "POST" })
-      await refreshPlaylist()
+    if (currentVideo && playlist && !playlist.completedVideoIds.includes(currentVideo.id)) {
+      // Optimistic update for auto-complete
+      setPlaylist({
+        ...playlist,
+        completedVideoIds: [...playlist.completedVideoIds, currentVideoId],
+      })
+      
+      try {
+        await fetch(`/api/videos/${currentVideoId}/complete`, { method: "POST" })
+      } catch (error) {
+        console.error("Failed to mark video as completed", error)
+      }
     }
 
     if (autoAdvance) {
@@ -175,15 +228,21 @@ export default function WatchPage() {
   }
 
   function handleTimeUpdate(seconds: number) {
-    if (!currentVideoId) return
+    if (!currentVideoId || !playlist) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
+
+    // Optimistic update for resume position
+    const updatedVideos = playlist.videos.map((v) =>
+      v.id === currentVideoId ? { ...v, resumeAtSeconds: seconds } : v
+    )
+    setPlaylist({ ...playlist, videos: updatedVideos })
 
     saveTimer.current = setTimeout(() => {
       fetch(`/api/videos/${currentVideoId}/position`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ seconds }),
-      })
+      }).catch((error) => console.error("Failed to save position", error))
     }, 500)
   }
 
