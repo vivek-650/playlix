@@ -285,7 +285,7 @@ export default function WatchPage() {
 
   return (
     <div
-      className={`flex flex-col lg:flex-row h-[calc(100vh-3.5rem)] ${focusMode ? "fixed inset-0 z-50 bg-background h-screen" : ""}`}
+      className={`flex h-full flex-col lg:flex-row ${focusMode ? "fixed inset-0 z-50 bg-background h-screen" : ""}`}
     >
       <div className="flex-1 flex flex-col min-w-0">
         <div className="w-full">

@@ -21,6 +21,26 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>
     const containerRef = useRef<HTMLDivElement>(null)
     const currentVideoId = useRef(videoId)
     const timeInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+    const onEndedRef = useRef(onEnded)
+    const onTimeUpdateRef = useRef(onTimeUpdate)
+    const playbackSpeedRef = useRef(playbackSpeed)
+    const startAtRef = useRef(startAt)
+
+    useEffect(() => {
+      onEndedRef.current = onEnded
+    }, [onEnded])
+
+    useEffect(() => {
+      onTimeUpdateRef.current = onTimeUpdate
+    }, [onTimeUpdate])
+
+    useEffect(() => {
+      playbackSpeedRef.current = playbackSpeed
+    }, [playbackSpeed])
+
+    useEffect(() => {
+      startAtRef.current = startAt
+    }, [startAt])
 
     useImperativeHandle(ref, () => ({
       getCurrentTime: () => {
@@ -48,7 +68,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>
             const state = playerRef.current.getPlayerState()
             if (state === 1) {
               // PLAYING
-              onTimeUpdate?.(playerRef.current.getCurrentTime())
+              onTimeUpdateRef.current?.(playerRef.current.getCurrentTime())
             }
           } catch {
             // ignore
@@ -83,16 +103,16 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>
           iv_load_policy: 3,
           enablejsapi: 1,
           playsinline: 1,
-          start: startAt && startAt > 5 ? Math.floor(startAt) : undefined,
+          start: startAtRef.current && startAtRef.current > 5 ? Math.floor(startAtRef.current) : undefined,
         },
         events: {
           onReady: (event) => {
-            event.target.setPlaybackRate(playbackSpeed)
+            event.target.setPlaybackRate(playbackSpeedRef.current)
             startTimeTracking()
           },
           onStateChange: (event) => {
             if (event.data === 0) {
-              onEnded?.()
+              onEndedRef.current?.()
             }
             if (event.data === 1) {
               startTimeTracking()
@@ -100,7 +120,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>
             if (event.data === 2 || event.data === 0) {
               // PAUSED or ENDED - save position immediately
               try {
-                onTimeUpdate?.(event.target.getCurrentTime())
+                onTimeUpdateRef.current?.(event.target.getCurrentTime())
               } catch {
                 // ignore
               }
@@ -109,7 +129,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>
         },
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [onEnded, playbackSpeed, startAt])
+    }, [])
 
     // Load YouTube IFrame API
     useEffect(() => {
@@ -144,23 +164,26 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>
       currentVideoId.current = videoId
       if (playerRef.current) {
         try {
-          if (startAt && startAt > 5) {
-            ;(playerRef.current as any).loadVideoById({ videoId, startSeconds: Math.floor(startAt) })
+          if (startAtRef.current && startAtRef.current > 5) {
+            ;(playerRef.current as any).loadVideoById({
+              videoId,
+              startSeconds: Math.floor(startAtRef.current),
+            })
           } else {
             ;(playerRef.current as any).loadVideoById(videoId)
           }
-          playerRef.current.setPlaybackRate(playbackSpeed)
+          playerRef.current.setPlaybackRate(playbackSpeedRef.current)
         } catch {
           initPlayer()
         }
       }
-    }, [videoId, initPlayer, playbackSpeed, startAt])
+    }, [videoId, initPlayer])
 
     // Handle playback speed change
     useEffect(() => {
       if (playerRef.current) {
         try {
-          playerRef.current.setPlaybackRate(playbackSpeed)
+          playerRef.current.setPlaybackRate(playbackSpeedRef.current)
         } catch {
           // ignore
         }

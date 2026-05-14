@@ -18,9 +18,15 @@ interface AddPlaylistDialogProps {
   onAdded: () => void
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  showTrigger?: boolean
 }
 
-export function AddPlaylistDialog({ onAdded, open: controlledOpen, onOpenChange: controlledOnOpenChange }: AddPlaylistDialogProps) {
+export function AddPlaylistDialog({
+  onAdded,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  showTrigger = true,
+}: AddPlaylistDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   
   // Use controlled state if provided, otherwise use internal state
@@ -105,12 +111,14 @@ export function AddPlaylistDialog({ onAdded, open: controlledOpen, onOpenChange:
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="gap-2">
-          <PlusCircle className="h-4 w-4" />
-          Add Playlist
-        </Button>
-      </DialogTrigger>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          <Button className="gap-2">
+            <PlusCircle className="h-4 w-4" />
+            Add Playlist
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add YouTube Playlist</DialogTitle>

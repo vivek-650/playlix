@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useDataCache } from "@/hooks/use-data-cache"
 import { useUser } from "@clerk/nextjs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,48 +14,52 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 export default function ProfilePage() {
   const { user } = useUser()
-  const [library, setLibrary] = useState<LibraryPlaylist[]>([])
-  const [stats, setStats] = useState<LearningStats | null>(null)
+  const { data: library = [], loading: playlistsLoading } = useDataCache(
+    "playlists:library",
+    async () => {
+      const res = await fetch("/api/playlists")
+      const payload = await res.json()
+      if (!payload.success) throw new Error(payload.error || "Failed to load playlists")
+      return payload.data || []
+    },
+    { ttl: 5 * 60 * 1000 }
+  )
+
+  const { data: stats = null, loading: statsLoading } = useDataCache(
+    "stats:user",
+    async () => {
+      const res = await fetch("/api/stats")
+      const payload = await res.json()
+      if (!payload.success) throw new Error(payload.error || "Failed to load stats")
+      return payload.data
+    },
+    { ttl: 5 * 60 * 1000 }
+  )
+
+  const { data: activity = [], loading: activityLoading } = useDataCache(
+    "activity:user",
+    async () => {
+      const res = await fetch("/api/activity")
+      const payload = await res.json()
+      if (!payload.success) throw new Error(payload.error || "Failed to load activity")
+      return payload.data || []
+    },
+    { ttl: 2 * 60 * 1000 }
+  )
+
   const [dailyCompletions, setDailyCompletions] = useState<DailyCompletions>({})
-  const [loading, setLoading] = useState(true)
-
-  const refresh = useCallback(() => {
-    setLoading(true)
-    Promise.all([fetch("/api/playlists"), fetch("/api/stats"), fetch("/api/activity")])
-      .then(async ([playlistsRes, statsRes, activityRes]) => {
-        const playlistsData = await playlistsRes.json()
-        const statsData = await statsRes.json()
-        const activityData = await activityRes.json()
-
-        if (playlistsData.success) setLibrary(playlistsData.data || [])
-        if (statsData.success) setStats(statsData.data)
-
-        const completions: DailyCompletions = {}
-        if (activityData.success) {
-          for (const event of activityData.data || []) {
-            if (event.type === "video_completed" || event.type === "playlist_completed") {
-              const day = new Date(event.timestamp).toISOString().slice(0, 10)
-              completions[day] = (completions[day] || 0) + 1
-            }
-          }
-        }
-        setDailyCompletions(completions)
-      })
-      .finally(() => setLoading(false))
-  }, [])
+  const loading = playlistsLoading || statsLoading || activityLoading
 
   useEffect(() => {
-    refresh()
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") refresh()
+    const completions: DailyCompletions = {}
+    for (const event of activity || []) {
+      if (event.type === "video_completed" || event.type === "playlist_completed") {
+        const day = new Date(event.timestamp).toISOString().slice(0, 10)
+        completions[day] = (completions[day] || 0) + 1
+      }
     }
-    document.addEventListener("visibilitychange", handleVisibility)
-    window.addEventListener("focus", refresh)
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibility)
-      window.removeEventListener("focus", refresh)
-    }
-  }, [refresh])
+    setDailyCompletions(completions)
+  }, [activity])
 
   if (!user) return null
 

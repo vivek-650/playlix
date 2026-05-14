@@ -18,6 +18,28 @@ const nextConfig = {
       },
     ],
   },
-}
+  webpack: (config, { isServer }) => {
+    if (config.optimization.splitChunks !== false) {
+      config.optimization.splitChunks = {
+        ...config.optimization.splitChunks,
+        cacheGroups: {
+          ...(config.optimization.splitChunks?.cacheGroups || {}),
+          vendors: {
+            test: /[\\/]node_modules[\\/]/,
+            name: "vendors",
+            priority: 10,
+            enforce: true,
+          },
+          common: {
+            minChunks: 2,
+            priority: 5,
+            reuseExistingChunk: true,
+          },
+        },
+      };
+    }
+    return config;
+  },
+};
 
-export default nextConfig
+export default nextConfig;

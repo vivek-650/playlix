@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Globe, Users, Video, Sparkles } from "lucide-react"
+import { Users, Video, GraduationCap } from "lucide-react"
 
 interface PublicPlaylist {
   id: string
@@ -103,13 +101,13 @@ export function CommunitySection() {
 
   return (
     <div className="space-y-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-2">Community Playlists</h2>
-        <p className="text-gray-500">Discover and learn from playlists created by our community</p>
+      <div>
+        <h2 className="text-2xl font-semibold">Community Courses</h2>
+        <p className="text-sm text-muted-foreground">Access courses created by other learners.</p>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="space-y-3">
               <Skeleton className="aspect-video rounded-lg" />
@@ -119,16 +117,16 @@ export function CommunitySection() {
           ))}
         </div>
       ) : playlists.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500 mb-4">No public playlists yet</p>
-          <p className="text-sm text-gray-400">Create a public playlist to share with the community!</p>
+        <div className="text-center py-12 text-muted-foreground">
+          <p className="mb-2">No public playlists yet</p>
+          <p className="text-sm">Create a public playlist to share with the community.</p>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {playlists.map((playlist) => (
-              <Card key={playlist.id} className="overflow-hidden border-border/60 bg-card/80 backdrop-blur">
-                <div className="relative aspect-video overflow-hidden bg-gradient-to-br from-background to-muted">
+              <div key={playlist.id} className="overflow-hidden rounded-xl border border-border/60 bg-card">
+                <div className="relative aspect-video bg-muted">
                   {playlist.thumbnailUrl ? (
                     <Image
                       src={playlist.thumbnailUrl}
@@ -138,54 +136,42 @@ export function CommunitySection() {
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center bg-gradient-to-br from-background to-muted">
-                      <div className="rounded-full bg-background/80 px-4 py-2 text-sm text-muted-foreground shadow-sm">
-                        No thumbnail
-                      </div>
+                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                      No thumbnail
                     </div>
                   )}
-                  <div className="absolute left-3 top-3 flex items-center gap-2">
-                    <Badge className="gap-1.5 bg-background/90 text-foreground border shadow-sm">
-                      <Globe className="h-3 w-3" />
-                      Public
-                    </Badge>
-                  </div>
-                  <div className="absolute right-3 bottom-3 flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1 rounded-full bg-background/80 px-2 py-1">
-                      <Video className="h-3 w-3" />
-                      {playlist.totalVideos} videos
-                    </span>
-                    <span className="flex items-center gap-1 rounded-full bg-background/80 px-2 py-1">
-                      <Users className="h-3 w-3" />
-                      {playlist.analytics.totalEnrollments}
-                    </span>
-                  </div>
                 </div>
-                <CardHeader className="space-y-2">
-                  <CardTitle className="line-clamp-2 text-lg">{playlist.title}</CardTitle>
-                  <p className="text-sm text-muted-foreground line-clamp-3">
-                    {playlist.description || "A community playlist worth exploring."}
-                  </p>
-                </CardHeader>
-                <CardContent className="pt-0 text-sm text-muted-foreground space-y-1">
-                  <p>
-                    Created by {playlist.createdBy.firstName || "Unknown"} {playlist.createdBy.lastName || ""}
-                  </p>
-                  <p>{playlist.analytics.totalViews} views</p>
-                </CardContent>
-                <CardFooter className="gap-2">
-                  <Button className="w-full gap-2" onClick={() => handleEnroll(playlist.id)} disabled={joiningId === playlist.id}>
-                    {joiningId === playlist.id ? (
-                      "Joining..."
-                    ) : (
+                <div className="p-4 space-y-3">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold line-clamp-2">{playlist.title}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      By {playlist.createdBy.firstName || "Unknown"} {playlist.createdBy.lastName || ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Video className="h-3.5 w-3.5" />
+                      {playlist.totalVideos} lectures
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3.5 w-3.5" />
+                      {playlist.analytics.totalEnrollments} learners
+                    </span>
+                  </div>
+                  <Button
+                    className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => handleEnroll(playlist.id)}
+                    disabled={joiningId === playlist.id}
+                  >
+                    {joiningId === playlist.id ? "Starting..." : (
                       <>
-                        <Sparkles className="h-4 w-4" />
-                        Enroll & Watch
+                        <GraduationCap className="h-4 w-4" />
+                        Start Learning
                       </>
                     )}
                   </Button>
-                </CardFooter>
-              </Card>
+                </div>
+              </div>
             ))}
           </div>
 

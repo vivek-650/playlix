@@ -3,9 +3,8 @@
 import { useEffect, useState } from "react"
 import { NotesSidebar } from "@/components/notes-sidebar"
 import { NoteEditor } from "@/components/note-editor"
-import { EmptyState } from "@/components/empty-state"
 import type { NoteFile } from "@/lib/types"
-import { StickyNote, PlusCircle } from "lucide-react"
+import { PlusCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function NotesPage() {
@@ -56,26 +55,8 @@ export default function NotesPage() {
 
   const activeNote = notes.find((n) => n.id === activeNoteId)
 
-  if (!loading && notes.length === 0) {
-    return (
-      <div className="container px-4 py-6">
-        <h1 className="text-2xl font-bold mb-6">Notes</h1>
-        <EmptyState
-          icon={StickyNote}
-          title="No notes yet"
-          description="Create your first note to start capturing your learning."
-        >
-          <Button onClick={handleCreate} className="gap-2">
-            <PlusCircle className="h-4 w-4" />
-            New Note
-          </Button>
-        </EmptyState>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
+    <div className="flex h-full">
       {/* Sidebar */}
       <div className="w-64 lg:w-72 shrink-0 hidden sm:block">
         <NotesSidebar
@@ -88,7 +69,19 @@ export default function NotesPage() {
 
       {/* Editor */}
       <div className="flex-1 min-w-0">
-        {activeNote ? (
+        {!loading && notes.length === 0 ? (
+          <div className="px-6 py-10">
+            <h1 className="text-2xl font-semibold">Notes</h1>
+            <p className="text-sm text-muted-foreground mt-1">Manage your course notes, all at one place.</p>
+            <div className="mt-24 text-center text-muted-foreground">All your notes will appear here.</div>
+            <div className="mt-6 flex justify-center">
+              <Button onClick={handleCreate} className="gap-2">
+                <PlusCircle className="h-4 w-4" />
+                New Note
+              </Button>
+            </div>
+          </div>
+        ) : activeNote ? (
           <NoteEditor
             key={activeNote.id}
             note={activeNote}
