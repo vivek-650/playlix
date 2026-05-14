@@ -7,11 +7,69 @@ import { RootProvider } from "@/components/root-provider"
 const sora = Sora({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://playlix.com"), // replace with your actual domain
+
   title: {
     default: "Playlix",
     template: "%s | Playlix",
   },
-  description: "Learn from YouTube playlists without distractions. Track progress, take notes, and stay focused.",
+
+  description:
+    "Learn from YouTube playlists without distractions. Track progress, take notes, and stay focused.",
+
+  keywords: [
+    "Playlix",
+    "YouTube playlist learning",
+    "study platform",
+    "playlist tracker",
+    "learning app",
+    "focus learning",
+    "student productivity",
+    "notes from videos",
+  ],
+
+  authors: [{ name: "Playlix" }],
+  creator: "Playlix",
+  publisher: "Playlix",
+
+  applicationName: "Playlix",
+
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://playlix-beta.vercel.app", // replace with your actual domain
+    siteName: "Playlix",
+    title: "Playlix",
+    description:
+      "Learn from YouTube playlists without distractions. Track progress, take notes, and stay focused.",
+    images: [
+      {
+        url: "/landing.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Playlix Landing Preview",
+      },
+    ],
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "Playlix",
+    description:
+      "Learn from YouTube playlists without distractions. Track progress, take notes, and stay focused.",
+    images: ["/landing.jpg"],
+  },
+
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
+
+  robots: {
+    index: true,
+    follow: true,
+  },
 }
 
 export default function RootLayout({
