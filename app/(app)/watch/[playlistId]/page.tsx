@@ -5,24 +5,13 @@ import { useParams, useRouter } from "next/navigation"
 import { YouTubePlayer, type YouTubePlayerHandle } from "@/components/youtube-player"
 import { WatchSidebar } from "@/components/watch-sidebar"
 import { WatchNotes } from "@/components/watch-notes"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts"
+import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 import type { LibraryPlaylist } from "@/lib/types"
-import {
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-  PanelRightClose,
-  PanelRight,
-  ListVideo,
-  StickyNote,
-} from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
-
-const SPEED_OPTIONS = ["0.5", "0.75", "1", "1.25", "1.5", "1.75", "2"]
+import { ChevronLeft, Flame, ListVideo, StickyNote } from "lucide-react"
+import { getEffectiveCounts, getTimeRemaining } from "@/lib/storage"
 
 export default function WatchPage() {
   const params = useParams()
@@ -34,10 +23,7 @@ export default function WatchPage() {
   const [playlist, setPlaylist] = useState<LibraryPlaylist | null>(null)
   const [currentVideoId, setCurrentVideoId] = useState("")
   const [startAt, setStartAt] = useState(0)
-  const [focusMode, setFocusMode] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
-  const [autoAdvance, setAutoAdvance] = useState(true)
   const [loading, setLoading] = useState(true)
 
   const chooseInitialVideo = useCallback((data: LibraryPlaylist | null) => {
@@ -79,7 +65,6 @@ export default function WatchPage() {
 
       if (settingsData.success && settingsData.data) {
         setPlaybackSpeed(Number(settingsData.data.playbackSpeed) || 1)
-        setAutoAdvance(Boolean(settingsData.data.autoAdvance))
       }
     } catch (error) {
       console.error(error)
@@ -93,58 +78,27 @@ export default function WatchPage() {
     loadData()
   }, [loadData])
 
-  function refreshPlaylist() {
-    return fetch(`/api/playlists/${playlistId}`)
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.success) {
-          setPlaylist(data.data)
-          return data.data as LibraryPlaylist
-        }
-        return null
-      })
-  }
-
-  function findNextPlayable(fromIndex: number, direction: 1 | -1): number {
-    if (!playlist) return -1
-    const skipped = new Set(playlist.skippedVideoIds || [])
-    let index = fromIndex + direction
-
-    while (index >= 0 && index < playlist.videos.length) {
-      if (!skipped.has(playlist.videos[index].id)) return index
-      index += direction
-    }
-
-    return -1
-  }
-
   const currentIndex = playlist?.videos.findIndex((video) => video.id === currentVideoId) ?? -1
+  const currentVideo = playlist?.videos.find((video) => video.id === currentVideoId)
 
-  const goNext = useCallback(() => {
-    if (!playlist) return
-    const nextIndex = findNextPlayable(currentIndex, 1)
-    if (nextIndex === -1) return
+  const { totalActive = 0, completedActive = 0, progress = 0 } = playlist
+    ? getEffectiveCounts(playlist)
+    : {}
+  const timeLeft = playlist ? getTimeRemaining(playlist) : ""
 
-    const nextVideo = playlist.videos[nextIndex]
-    setCurrentVideoId(nextVideo.id)
-    setStartAt(nextVideo.resumeAtSeconds || 0)
-  }, [playlist, currentIndex])
-
-  const goPrev = useCallback(() => {
-    if (!playlist) return
-    const prevIndex = findNextPlayable(currentIndex, -1)
-    if (prevIndex === -1) return
-
-    const prevVideo = playlist.videos[prevIndex]
-    setCurrentVideoId(prevVideo.id)
-    setStartAt(prevVideo.resumeAtSeconds || 0)
-  }, [playlist, currentIndex])
-
-  const toggleFocus = useCallback(() => {
-    setFocusMode((prev) => !prev)
-  }, [])
-
-  useKeyboardShortcuts({ onNext: goNext, onPrev: goPrev, onToggleFocus: toggleFocus })
+  async function refreshPlaylist() {
+    try {
+      const response = await fetch(`/api/playlists/${playlistId}`)
+      const data = await response.json()
+      if (data.success) {
+        setPlaylist(data.data)
+        return data.data as LibraryPlaylist
+      }
+    } catch (error) {
+      console.error(error)
+    }
+    return null
+  }
 
   function handleSelectVideo(videoId: string) {
     const video = playlist?.videos.find((item) => item.id === videoId)
@@ -154,26 +108,25 @@ export default function WatchPage() {
 
   async function handleToggleComplete(videoId: string) {
     if (!playlist) return
-    
-    // Optimistic update
+
     const isCompleted = playlist.completedVideoIds.includes(videoId)
+    const nextCompleted = isCompleted
+      ? playlist.completedVideoIds.filter((id) => id !== videoId)
+      : [...playlist.completedVideoIds, videoId]
+
     setPlaylist({
       ...playlist,
-      completedVideoIds: isCompleted
-        ? playlist.completedVideoIds.filter((id) => id !== videoId)
-        : [...playlist.completedVideoIds, videoId],
+      completedVideoIds: nextCompleted,
     })
 
     try {
       const response = await fetch(`/api/videos/${videoId}/complete`, { method: "POST" })
       if (!response.ok) throw new Error("Failed to toggle completion")
+      await refreshPlaylist()
     } catch (error) {
-      // Rollback on error
       setPlaylist({
         ...playlist,
-        completedVideoIds: isCompleted
-          ? [...playlist.completedVideoIds, videoId]
-          : playlist.completedVideoIds.filter((id) => id !== videoId),
+        completedVideoIds: playlist.completedVideoIds,
       })
       console.error(error)
     }
@@ -182,25 +135,24 @@ export default function WatchPage() {
   async function handleToggleSkip(videoId: string) {
     if (!playlist) return
 
-    // Optimistic update
     const isSkipped = playlist.skippedVideoIds?.includes(videoId)
+    const nextSkipped = isSkipped
+      ? (playlist.skippedVideoIds || []).filter((id) => id !== videoId)
+      : [...(playlist.skippedVideoIds || []), videoId]
+
     setPlaylist({
       ...playlist,
-      skippedVideoIds: isSkipped
-        ? (playlist.skippedVideoIds || []).filter((id) => id !== videoId)
-        : [...(playlist.skippedVideoIds || []), videoId],
+      skippedVideoIds: nextSkipped,
     })
 
     try {
       const response = await fetch(`/api/videos/${videoId}/skip`, { method: "POST" })
       if (!response.ok) throw new Error("Failed to toggle skip")
+      await refreshPlaylist()
     } catch (error) {
-      // Rollback on error
       setPlaylist({
         ...playlist,
-        skippedVideoIds: isSkipped
-          ? [...(playlist.skippedVideoIds || []), videoId]
-          : (playlist.skippedVideoIds || []).filter((id) => id !== videoId),
+        skippedVideoIds: playlist.skippedVideoIds,
       })
       console.error(error)
     }
@@ -209,21 +161,16 @@ export default function WatchPage() {
   async function handleVideoEnded() {
     const currentVideo = playlist?.videos.find((video) => video.id === currentVideoId)
     if (currentVideo && playlist && !playlist.completedVideoIds.includes(currentVideo.id)) {
-      // Optimistic update for auto-complete
       setPlaylist({
         ...playlist,
         completedVideoIds: [...playlist.completedVideoIds, currentVideoId],
       })
-      
+
       try {
         await fetch(`/api/videos/${currentVideoId}/complete`, { method: "POST" })
       } catch (error) {
         console.error("Failed to mark video as completed", error)
       }
-    }
-
-    if (autoAdvance) {
-      goNext()
     }
   }
 
@@ -231,7 +178,6 @@ export default function WatchPage() {
     if (!currentVideoId || !playlist) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
 
-    // Optimistic update for resume position
     const updatedVideos = playlist.videos.map((v) =>
       v.id === currentVideoId ? { ...v, resumeAtSeconds: seconds } : v
     )
@@ -246,129 +192,83 @@ export default function WatchPage() {
     }, 500)
   }
 
-  async function handleSpeedChange(value: string) {
-    const speed = parseFloat(value)
-    setPlaybackSpeed(speed)
-    await fetch("/api/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playbackSpeed: speed }),
-    })
-  }
-
-  const getPlayerTime = useCallback(() => {
-    return playerRef.current?.getCurrentTime() || 0
-  }, [])
-
-  const seekPlayerTo = useCallback((seconds: number) => {
-    playerRef.current?.seekTo(seconds)
-  }, [])
-
   if (loading) {
     return (
       <div className="p-4 space-y-4">
         <Skeleton className="h-80 w-full rounded-xl" />
         <Skeleton className="h-10 w-full" />
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_22rem] gap-4">
-          <Skeleton className="h-96 rounded-xl" />
-          <Skeleton className="h-96 rounded-xl" />
-        </div>
       </div>
     )
   }
 
   if (!playlist) return null
 
-  const currentVideo = playlist.videos.find((video) => video.id === currentVideoId)
-  const hasNext = findNextPlayable(currentIndex, 1) !== -1
-  const hasPrev = findNextPlayable(currentIndex, -1) !== -1
-
   return (
-    <div
-      className={`flex h-full flex-col lg:flex-row ${focusMode ? "fixed inset-0 z-50 bg-background h-screen" : ""}`}
-    >
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="w-full">
-          <YouTubePlayer
-            ref={playerRef}
-            videoId={currentVideoId}
-            onEnded={handleVideoEnded}
-            onTimeUpdate={handleTimeUpdate}
-            playbackSpeed={playbackSpeed}
-            startAt={startAt}
-          />
-        </div>
-
-        <div className="flex items-center justify-between p-3 border-b gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={goPrev} disabled={!hasPrev}>
-              <ChevronLeft className="h-4 w-4" />
-              <span className="hidden sm:inline ml-1">Prev</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={goNext} disabled={!hasNext}>
-              <span className="hidden sm:inline mr-1">Next</span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Select value={playbackSpeed.toString()} onValueChange={handleSpeedChange}>
-              <SelectTrigger className="w-20 h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SPEED_OPTIONS.map((speed) => (
-                  <SelectItem key={speed} value={speed}>
-                    {speed}x
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleFocus}>
-              {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 hidden lg:flex"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
-              {sidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
-            </Button>
+    <div className="flex h-full flex-col bg-background">
+      <div className="flex items-center justify-between gap-4 border-b px-4 py-3 lg:px-6">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard")}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold">{playlist.title}</h1>
+            <p className="text-sm text-muted-foreground">{playlist.channelTitle}</p>
           </div>
         </div>
-
-        {currentVideo && (
-          <div className="p-4">
-            <h1 className="text-lg font-semibold">{currentVideo.title}</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Video {currentVideo.position} of {playlist.totalVideos} &middot; {playlist.channelTitle}
-            </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              <kbd className="px-1 py-0.5 bg-muted rounded text-xs">N</kbd> Next{" "}
-              <kbd className="px-1 py-0.5 bg-muted rounded text-xs">P</kbd> Previous{" "}
-              <kbd className="px-1 py-0.5 bg-muted rounded text-xs">F</kbd> Focus mode
-            </p>
+        <div className="flex items-center gap-3">
+          <div className="hidden items-center gap-2 rounded-full bg-muted px-3 py-1 text-sm sm:flex">
+            <Flame className="h-4 w-4 text-primary" />
+            <span>1 day</span>
           </div>
-        )}
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <span>{Math.round(progress)}%</span>
+            <Progress value={progress} className="h-1.5 w-40" />
+            <span>Complete</span>
+          </div>
+        </div>
       </div>
 
-      {sidebarOpen && (
-        <div className="w-full lg:w-80 xl:w-96 h-64 lg:h-full border-t lg:border-t-0 flex flex-col">
-          <Tabs defaultValue="playlist" className="flex flex-col h-full">
-            <TabsList className="w-full rounded-none border-b bg-background h-9 shrink-0">
-              <TabsTrigger value="playlist" className="flex-1 gap-1.5 text-xs">
-                <ListVideo className="h-3.5 w-3.5" />
-                Playlist
+      <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="min-w-0 overflow-y-auto">
+          <div className="p-0 lg:p-0">
+            <YouTubePlayer
+              ref={playerRef}
+              videoId={currentVideoId}
+              onEnded={handleVideoEnded}
+              onTimeUpdate={handleTimeUpdate}
+              playbackSpeed={playbackSpeed}
+              startAt={startAt}
+            />
+          </div>
+
+          {currentVideo && (
+            <div className="px-4 py-4 lg:px-6">
+              <h2 className="text-xl font-semibold">{currentVideo.title}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Video {currentVideo.position} of {playlist.totalVideos}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <aside className="min-h-0 border-l bg-background">
+          <Tabs defaultValue="playlist" className="flex h-full flex-col">
+            <TabsList className="grid w-full grid-cols-3 rounded-none border-b bg-background p-0">
+              <TabsTrigger value="playlist" className="gap-2 rounded-none data-[state=active]:bg-accent">
+                <ListVideo className="h-4 w-4" />
+                Content
               </TabsTrigger>
-              <TabsTrigger value="notes" className="flex-1 gap-1.5 text-xs">
-                <StickyNote className="h-3.5 w-3.5" />
+              <TabsTrigger value="notes" className="gap-2 rounded-none data-[state=active]:bg-accent">
+                <StickyNote className="h-4 w-4" />
                 Notes
               </TabsTrigger>
+              <TabsTrigger value="summary" className="gap-2 rounded-none data-[state=active]:bg-accent">
+                <span className="h-4 w-4 text-center text-xs font-semibold">i</span>
+                Summary
+              </TabsTrigger>
             </TabsList>
-            <TabsContent value="playlist" className="flex-1 mt-0 overflow-hidden">
+
+            <TabsContent value="playlist" className="m-0 flex-1 overflow-hidden">
               <WatchSidebar
                 playlist={playlist}
                 currentVideoId={currentVideoId}
@@ -377,17 +277,28 @@ export default function WatchPage() {
                 onToggleSkip={handleToggleSkip}
               />
             </TabsContent>
-            <TabsContent value="notes" className="flex-1 mt-0 overflow-hidden">
+
+            <TabsContent value="notes" className="m-0 flex-1 overflow-hidden">
               <WatchNotes
                 playlistId={playlistId}
                 playlistTitle={playlist.title}
-                getCurrentTime={getPlayerTime}
-                onSeekTo={seekPlayerTo}
               />
             </TabsContent>
+
+            <TabsContent value="summary" className="m-0 flex-1 overflow-auto p-4">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium">Progress</p>
+                  <p className="text-sm text-muted-foreground">
+                    {completedActive}/{totalActive} completed
+                  </p>
+                </div>
+                <p className="text-sm text-muted-foreground">{timeLeft} left</p>
+              </div>
+            </TabsContent>
           </Tabs>
-        </div>
-      )}
+        </aside>
+      </div>
     </div>
   )
 }

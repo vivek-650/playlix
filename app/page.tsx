@@ -50,7 +50,7 @@ export default function LandingPage() {
       <header className="container mx-auto px-4 py-6 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <Youtube className="h-5 w-5 text-red-500" />
-          <span className="text-lg font-bold">YTLearn</span>
+          <span className="text-lg font-bold">Playlix</span>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/sign-in">
@@ -120,7 +120,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 text-center text-muted-foreground text-sm border-t">
-        <p>&copy; {new Date().getFullYear()} YTLearn. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} Playlix. All rights reserved.</p>
       </footer>
     </div>
   )

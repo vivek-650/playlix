@@ -36,6 +36,12 @@ export const playlistService = {
       data: { userId, playlistId },
     })
 
+    await prisma.playlistAnalytics.upsert({
+      where: { playlistId },
+      update: { totalEnrollments: { increment: 1 } },
+      create: { playlistId, totalEnrollments: 1 },
+    })
+
     // Emit event for side effects
     await emitEvent(EventType.PLAYLIST_ENROLLED, userId, {
       playlistId,
@@ -118,7 +124,7 @@ export const playlistService = {
   },
 
   async getUserPlaylists(userId: string) {
-    return prisma.playlist.findMany({
+    const created = await prisma.playlist.findMany({
       where: { createdById: userId, deletedAt: null },
       include: {
         videos: {
@@ -131,6 +137,36 @@ export const playlistService = {
       },
       orderBy: { createdAt: "desc" },
     })
+
+    const enrollments = await prisma.playlistEnrollment.findMany({
+      where: { userId },
+      include: {
+        playlist: {
+          include: {
+            videos: {
+              include: {
+                userProgress: { where: { userId } },
+              },
+            },
+            analytics: true,
+            createdBy: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+          },
+        },
+      },
+      orderBy: { enrolledAt: "desc" },
+    })
+
+    const merged = new Map<string, any>()
+    for (const playlist of created) {
+      merged.set(playlist.id, playlist)
+    }
+    for (const enrollment of enrollments) {
+      if (!merged.has(enrollment.playlistId)) {
+        merged.set(enrollment.playlistId, enrollment.playlist)
+      }
+    }
+
+    return Array.from(merged.values())
   },
 
   async getPublicPlaylists(limit = 20, skip = 0) {
@@ -258,6 +294,9 @@ export const videoService = {
         videoId: video.id,
         playlistId: video.playlistId,
       })
+
+      await updateUserStreak(userId)
+      await upsertDailyCompletion(userId)
     }
 
     return updated
@@ -326,6 +365,49 @@ export const videoService = {
       },
     })
   },
+}
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+async function updateUserStreak(userId: string) {
+  const today = startOfDay(new Date())
+  const existing = await prisma.streak.findUnique({ where: { userId } })
+
+  let currentStreak = 1
+  let maxStreak = 1
+
+  if (existing?.lastActiveDate) {
+    const last = startOfDay(existing.lastActiveDate)
+    const diffDays = Math.floor((today.getTime() - last.getTime()) / (24 * 60 * 60 * 1000))
+
+    if (diffDays === 0) {
+      currentStreak = existing.currentStreak
+      maxStreak = Math.max(existing.maxStreak, currentStreak)
+    } else if (diffDays === 1) {
+      currentStreak = existing.currentStreak + 1
+      maxStreak = Math.max(existing.maxStreak, currentStreak)
+    } else {
+      currentStreak = 1
+      maxStreak = Math.max(existing.maxStreak, currentStreak)
+    }
+  }
+
+  await prisma.streak.upsert({
+    where: { userId },
+    update: { currentStreak, maxStreak, lastActiveDate: today },
+    create: { userId, currentStreak, maxStreak, lastActiveDate: today },
+  })
+}
+
+async function upsertDailyCompletion(userId: string) {
+  const today = startOfDay(new Date())
+  await prisma.dailyCompletion.upsert({
+    where: { userId_completionDate: { userId, completionDate: today } },
+    update: { completionCount: { increment: 1 } },
+    create: { userId, completionDate: today, completionCount: 1 },
+  })
 }
 
 // ============================================

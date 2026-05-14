@@ -7,8 +7,11 @@ import { RootProvider } from "@/components/root-provider"
 const sora = Sora({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "YTLearn - Learn from YouTube, without distractions",
-  description: "Save YouTube playlists, track progress, take notes, and learn distraction-free",
+  title: {
+    default: "Playlix",
+    template: "%s | Playlix",
+  },
+  description: "Learn from YouTube playlists without distractions. Track progress, take notes, and stay focused.",
 }
 
 export default function RootLayout({

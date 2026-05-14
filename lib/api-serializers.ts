@@ -41,12 +41,15 @@ export function serializePlaylist(playlist: any): LibraryPlaylist {
   }))
 
   const progressRecords = (playlist.videos || []).map((video: any) => video.userProgress?.[0]).filter(Boolean)
+  const idLookup = new Map(
+    (playlist.videos || []).map((video: any) => [video.id, video.youtubeVideoId || video.id])
+  )
   const completedVideoIds = progressRecords
     .filter((progress: any) => progress.isCompleted)
-    .map((progress: any) => progress.video?.youtubeVideoId || progress.videoId)
+    .map((progress: any) => idLookup.get(progress.videoId) || progress.videoId)
   const skippedVideoIds = progressRecords
     .filter((progress: any) => progress.isSkipped)
-    .map((progress: any) => progress.video?.youtubeVideoId || progress.videoId)
+    .map((progress: any) => idLookup.get(progress.videoId) || progress.videoId)
 
   return {
     id: playlist.id,

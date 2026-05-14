@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { LibraryPlaylist } from "@/lib/types"
 import { Plus, Flame, BookOpen } from "lucide-react"
+import { CommunitySection } from "@/components/community-section"
 
 export default function DashboardPage() {
   const { user } = useUser()
@@ -29,6 +30,17 @@ export default function DashboardPage() {
       const data = await res.json()
       if (!data.success) throw new Error(data.error)
       return data.data || []
+    },
+    { ttl: 5 * 60 * 1000, revalidateOnFocus: true }
+  )
+
+  const { data: stats } = useDataCache(
+    "stats:user",
+    async () => {
+      const res = await fetch("/api/stats")
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      return data.data
     },
     { ttl: 5 * 60 * 1000, revalidateOnFocus: true }
   )
@@ -56,7 +68,7 @@ export default function DashboardPage() {
             <span className="opacity-90">Learning Streak</span>
             <Flame className="h-4 w-4" />
           </div>
-          <div className="mt-3 text-3xl font-bold">0</div>
+          <div className="mt-3 text-3xl font-bold">{stats?.currentStreak ?? 0}</div>
           <div className="text-sm opacity-90">days</div>
         </div>
         <div className="rounded-xl bg-gradient-to-br from-secondary/90 via-secondary/70 to-secondary/40 p-4 text-foreground">
@@ -83,7 +95,7 @@ export default function DashboardPage() {
           </Button>
         </EmptyState>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div>
             <h2 className="text-2xl font-semibold">Continue Learning</h2>
             <p className="text-sm text-muted-foreground">Pick up right where you left.</p>
@@ -136,6 +148,13 @@ export default function DashboardPage() {
                 )
               })}
             </div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-2xl font-semibold">Community Courses</h2>
+              <p className="text-sm text-muted-foreground">Explore playlists from other learners.</p>
+            </div>
+            <CommunitySection showHeader={false} />
           </div>
         </div>
       )}

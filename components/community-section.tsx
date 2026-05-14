@@ -5,6 +5,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { invalidateCachePattern } from "@/hooks/use-data-cache"
 import { Users, Video, GraduationCap } from "lucide-react"
 
 interface PublicPlaylist {
@@ -14,6 +15,7 @@ interface PublicPlaylist {
   thumbnailUrl?: string
   slug: string
   totalVideos: number
+  isEnrolled?: boolean
   analytics: {
     totalEnrollments: number
     totalViews: number
@@ -38,7 +40,7 @@ interface CommunityResponse {
   }
 }
 
-export function CommunitySection() {
+export function CommunitySection({ showHeader = true }: { showHeader?: boolean }) {
   const router = useRouter()
   const [playlists, setPlaylists] = useState<PublicPlaylist[]>([])
   const [loading, setLoading] = useState(true)
@@ -79,6 +81,13 @@ export function CommunitySection() {
       const data = await response.json()
 
       if (data.success) {
+        invalidateCachePattern("playlists:")
+        invalidateCachePattern("stats:")
+        setPlaylists((prev) =>
+          prev.map((playlist) =>
+            playlist.id === playlistId ? { ...playlist, isEnrolled: true } : playlist
+          )
+        )
         router.push(`/watch/${playlistId}`)
       } else {
         setError(data.error || "Failed to enroll in playlist")
@@ -101,10 +110,12 @@ export function CommunitySection() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold">Community Courses</h2>
-        <p className="text-sm text-muted-foreground">Access courses created by other learners.</p>
-      </div>
+      {showHeader && (
+        <div>
+          <h2 className="text-2xl font-semibold">Community Courses</h2>
+          <p className="text-sm text-muted-foreground">Access courses created by other learners.</p>
+        </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -160,10 +171,12 @@ export function CommunitySection() {
                   </div>
                   <Button
                     className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-                    onClick={() => handleEnroll(playlist.id)}
+                    onClick={() =>
+                      playlist.isEnrolled ? router.push(`/watch/${playlist.id}`) : handleEnroll(playlist.id)
+                    }
                     disabled={joiningId === playlist.id}
                   >
-                    {joiningId === playlist.id ? "Starting..." : (
+                    {playlist.isEnrolled ? "Continue" : joiningId === playlist.id ? "Starting..." : (
                       <>
                         <GraduationCap className="h-4 w-4" />
                         Start Learning

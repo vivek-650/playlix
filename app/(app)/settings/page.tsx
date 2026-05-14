@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -25,6 +26,7 @@ interface UserSettings {
 export default function SettingsPage() {
   const { user, signOut } = useUser()
   const router = useRouter()
+  const { theme: activeTheme, setTheme } = useTheme()
   const [settings, setSettings] = useState<UserSettings | null>(null)
   const [stats, setStats] = useState<LearningStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -43,22 +45,29 @@ export default function SettingsPage() {
       const settingsData = await settingsRes.json()
       const statsData = await statsRes.json()
 
+      const storedTheme = typeof window !== "undefined" ? localStorage.getItem("playlix_theme") : null
+      const storedNotifications = typeof window !== "undefined" ? localStorage.getItem("playlix_notifications") : null
+      const themeValue = (storedTheme || activeTheme || "system") as UserSettings["theme"]
+      const notificationsValue = storedNotifications ? storedNotifications === "true" : true
+
       if (settingsData.success && settingsData.data) {
         setSettings({
           playbackSpeed: Number(settingsData.data.playbackSpeed) || 1,
           autoAdvance: Boolean(settingsData.data.autoAdvance),
-          theme: settingsData.data.theme || "system",
-          notifications: Boolean(settingsData.data.notifications),
+          theme: themeValue,
+          notifications: notificationsValue,
         })
       } else {
         // Default settings
         setSettings({
           playbackSpeed: 1,
           autoAdvance: true,
-          theme: "system",
-          notifications: true,
+          theme: themeValue,
+          notifications: notificationsValue,
         })
       }
+
+      setTheme(themeValue)
 
       if (statsData.success) {
         setStats(statsData.data)
@@ -75,6 +84,21 @@ export default function SettingsPage() {
 
     const updated = { ...settings, [key]: value }
     setSettings(updated)
+
+    if (key === "theme") {
+      setTheme(value)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("playlix_theme", value)
+      }
+      return
+    }
+
+    if (key === "notifications") {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("playlix_notifications", value ? "true" : "false")
+      }
+      return
+    }
 
     // Save to server
     try {
