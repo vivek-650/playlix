@@ -129,7 +129,8 @@
 //               Log in
 //             </Link>
 //             <Link href="/sign-up">
-//               <Button className="h-9 px-5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all text-sm font-semibold shadow-sm">
+//               {/* Premium 3D Header Button */}
+//               <Button className="h-9 px-5 rounded-full bg-gradient-to-b from-primary/80 to-primary text-primary-foreground shadow-[0_2px_8px_rgba(0,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-2px_0_rgba(0,0,0,0.2)] border border-primary/30 hover:brightness-110 active:translate-y-[1px] active:shadow-[0_1px_3px_rgba(0,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-1px_0_rgba(0,0,0,0.2)] transition-all text-sm font-semibold">
 //                 Get started <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
 //               </Button>
 //             </Link>
@@ -211,7 +212,8 @@
           
 //           <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row items-center justify-center gap-4">
 //             <Link href="/sign-up">
-//               <Button className="h-12 px-8 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:-translate-y-0.5 text-base font-semibold group">
+//               {/* Premium 3D Hero Button */}
+//               <Button className="h-12 px-8 rounded-full bg-gradient-to-b from-primary/80 to-primary text-primary-foreground shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_2px_0_rgba(255,255,255,0.25),inset_0_-3px_0_rgba(0,0,0,0.2)] border border-primary/30 hover:brightness-110 active:translate-y-[2px] active:shadow-[0_2px_6px_rgba(0,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-1px_0_rgba(0,0,0,0.2)] transition-all text-base font-semibold group">
 //                 Get started - it's free 
 //                 <motion.span className="inline-block ml-2" whileHover={{ x: 5 }} transition={{ type: "spring", stiffness: 400 }}>
 //                   <ArrowRight className="h-4 w-4" />
@@ -528,13 +530,35 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="container mx-auto px-4 pt-24 pb-20 md:pt-32 md:pb-32 text-center max-w-5xl relative">
         
+        {/* Animated Semicircular Domes (Futuristic Arch Background) */}
+        <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[1200px] h-[1000px] pointer-events-none flex items-center justify-center z-0 [mask-image:linear-gradient(to_bottom,black_30%,transparent_65%)]">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1.2, delay: i * 0.15, ease: "easeOut" }}
+              className="absolute flex items-center justify-center"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.03, 1] }}
+                transition={{ duration: 8, repeat: Infinity, delay: i * 0.5, ease: "easeInOut" }}
+                className="rounded-full border border-foreground/[0.08] dark:border-foreground/[0.12] shadow-[inset_0_0_20px_rgba(0,0,0,0.02)]"
+                style={{ width: `${i * 180}px`, height: `${i * 180}px` }}
+              />
+            </motion.div>
+          ))}
+          {/* Subtle center glow for the rings */}
+          <div className="absolute w-[400px] h-[400px] bg-primary/10 blur-[120px] rounded-full" />
+        </div>
+
         {/* Floating Decorative Elements using Framer Motion */}
         <motion.div 
           animate={{ y: [0, -15, 0], rotate: [-6, -4, -6] }}
           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-          className="hidden lg:block absolute top-20 left-0"
+          className="hidden lg:block absolute top-20 left-0 z-10"
         >
-          <div className="bg-card border border-border/50 shadow-xl rounded-2xl p-4 flex items-center gap-3 w-48 hover:scale-105 transition-transform cursor-default">
+          <div className="bg-card/80 backdrop-blur-md border border-border/50 shadow-xl rounded-2xl p-4 flex items-center gap-3 w-48 hover:scale-105 transition-transform cursor-default">
             <div className="bg-blue-500/10 p-2 rounded-lg"><BookOpen className="h-5 w-5 text-blue-500" /></div>
             <div className="text-left">
               <p className="text-xs font-bold">Physics 101</p>
@@ -546,9 +570,9 @@ export default function LandingPage() {
         <motion.div 
           animate={{ y: [0, 15, 0], rotate: [6, 8, 6] }}
           transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-          className="hidden lg:block absolute top-40 right-4"
+          className="hidden lg:block absolute top-40 right-4 z-10"
         >
-          <div className="bg-card border border-border/50 shadow-xl rounded-2xl p-4 flex flex-col gap-2 w-56 hover:scale-105 transition-transform cursor-default">
+          <div className="bg-card/80 backdrop-blur-md border border-border/50 shadow-xl rounded-2xl p-4 flex flex-col gap-2 w-56 hover:scale-105 transition-transform cursor-default">
             <div className="flex items-center gap-2 mb-1">
               <div className="bg-primary/10 p-1.5 rounded-md"><BarChart className="h-4 w-4 text-primary" /></div>
               <p className="text-xs font-bold">Course Progress</p>
@@ -561,9 +585,9 @@ export default function LandingPage() {
         <motion.div 
           animate={{ y: [0, -10, 0], rotate: [3, 5, 3] }}
           transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-          className="hidden lg:block absolute -bottom-10 left-20"
+          className="hidden lg:block absolute -bottom-10 left-20 z-10"
         >
-          <div className="bg-card border border-border/50 shadow-xl rounded-2xl p-4 flex gap-3 w-64 hover:scale-105 transition-transform cursor-default">
+          <div className="bg-card/80 backdrop-blur-md border border-border/50 shadow-xl rounded-2xl p-4 flex gap-3 w-64 hover:scale-105 transition-transform cursor-default">
              <div className="w-6 h-6 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0"><StickyNote className="h-3 w-3 text-orange-500"/></div>
              <div className="space-y-1.5 w-full">
                <div className="h-2 w-3/4 bg-muted rounded"></div>
@@ -580,7 +604,7 @@ export default function LandingPage() {
           animate="show"
           className="relative z-10 flex flex-col items-center"
         >
-          <motion.div variants={fadeInUp} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-8">
+          <motion.div variants={fadeInUp} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/50 backdrop-blur-md border border-primary/20 text-primary text-xs font-semibold mb-8 shadow-sm">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
@@ -588,7 +612,7 @@ export default function LandingPage() {
             New! Turn any YouTube playlist into a course
           </motion.div>
           
-          <motion.h1 variants={fadeInUp} className="text-5xl md:text-[4rem] font-bold tracking-tight mb-6 leading-[1.05] text-foreground max-w-3xl">
+          <motion.h1 variants={fadeInUp} className="text-5xl md:text-[4rem] font-bold tracking-tight mb-6 leading-[1.05] text-foreground max-w-3xl drop-shadow-sm">
             Convert playlists. <br />
             Track progress <span className="text-primary">automatically.</span>
           </motion.h1>
@@ -616,7 +640,7 @@ export default function LandingPage() {
         initial={{ opacity: 0, scale: 0.8 }}
         whileInView={{ opacity: 1, scale: 1 }}
         viewport={{ once: true, margin: "-100px" }}
-        className="flex justify-center mt-12 mb-8"
+        className="flex justify-center mt-12 mb-8 relative z-10"
       >
         <span className="px-4 py-1.5 rounded-full border border-border/60 bg-muted/20 text-xs font-bold text-muted-foreground uppercase tracking-wider">
           Features
@@ -628,7 +652,7 @@ export default function LandingPage() {
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-100px" }}
-        className="text-center mb-16 px-4"
+        className="text-center mb-16 px-4 relative z-10"
       >
         <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
           Go from viewer to master
@@ -636,7 +660,7 @@ export default function LandingPage() {
       </motion.div>
 
       {/* Features Grid */}
-      <section id="features" className="container mx-auto px-6 max-w-5xl pb-32">
+      <section id="features" className="container mx-auto px-6 max-w-5xl pb-32 relative z-10">
         <motion.div 
           variants={staggerContainer}
           initial="hidden"
@@ -662,7 +686,7 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ Section */}
-      <section id="faq" className="container mx-auto px-4 py-20 max-w-3xl">
+      <section id="faq" className="container mx-auto px-4 py-20 max-w-3xl relative z-10">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -711,7 +735,7 @@ export default function LandingPage() {
       </section>
 
       {/* People Love Us (Avatar Cluster) */}
-      <section className="container mx-auto px-4 py-12 text-center pb-32">
+      <section className="container mx-auto px-4 py-12 text-center pb-32 relative z-10">
         <motion.div 
           initial="hidden"
           whileInView="show"
@@ -751,7 +775,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border/60 bg-background py-10">
+      <footer className="border-t border-border/60 bg-background py-10 relative z-10">
         <div className="container mx-auto px-6 max-w-6xl flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
             <Youtube className="h-5 w-5 text-primary" />
