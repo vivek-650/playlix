@@ -7,7 +7,7 @@ import { RootProvider } from "@/components/root-provider"
 const sora = Sora({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://playlix.com"), // replace with your actual domain
+  metadataBase: new URL("https://playlix-beta.vercel.app"), // replace with your actual domain
 
   title: {
     default: "Playlix",
