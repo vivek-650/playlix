@@ -59,17 +59,6 @@ export const metadata: Metadata = {
       "Learn from YouTube playlists without distractions. Track progress, take notes, and stay focused.",
     images: ["/landing.jpg"],
   },
-
-  icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
-  },
-
-  robots: {
-    index: true,
-    follow: true,
-  },
 }
 
 export default function RootLayout({
