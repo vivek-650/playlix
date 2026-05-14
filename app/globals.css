@@ -50,13 +50,15 @@
 }
 
 @layer base {
-  /* Firefox */
   * {
+    @apply border-border;
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--primary)) transparent;
   }
-
-  /* Chrome, Edge, and Safari */
+  body {
+    @apply bg-background text-foreground;
+  }
+   /* Chrome, Edge, and Safari */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
